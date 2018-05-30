@@ -5,20 +5,22 @@
 ## Data: Spatially and temporally repeated surveys collecting
 ##  (i)   counts of known unmarked individuals (n[s,t], e.g., bird detected, legs visible, and not bands) 
 ##  (ii)  counts of individuals with unknown marked status (h[s,t], e.g., bird detected but legs not visible) 
-##  (iii) counts of marked but unidentified individuals (r[s,t], e.g. partial band reads)
-##  (iv)  counts of marked and unidentified individuals (m[s,t], e.g. full band reads)
-##  (v)   capture histories of marked individuals (y[i,t], e.g., complete band reads)
+##  (iii) counts of marked but unidentified individuals (mPart[s,t], e.g. partial band reads)
+##  (iv)  counts of marked and identified individuals (mFull[s,t], e.g. copmplete band reads)
+##  (v)  capture histories of marked and identified individuals (y[i,t], e.g., complete band reads)
 ##
-## Two modeling approaches: 
+## Three modeling approaches: 
 ##  1. Integrated model 
 ##  2. N-mix model using only count data (counts[s,t])
 ##
-##  updated: 25-May-2018
+##  updated: 30-May-2018
+##
 ##---------------------------------------------------------------------##
 
 rm(list=ls())
 #setwd("C:\\Nathan\\pwrc\\projects\\American Oystercatchers\\R files\\simulation\\workspaces\\unknown banding status")
 #setwd("~/AMOY/simulation/workspace")
+
 library(jagsUI)
 nAdapt=10000; nc=3; nb=25000; ni=200000+nb; nt=10  #saved iterations will be nc*((ni-nb)/nt)
 #nAdapt=50; nc=3; nb=50; ni=50+nb; nt=1
@@ -38,9 +40,10 @@ pStar<-1-(1-(p*delta*theta))^K    #probability mark was uniquely identified at l
 #placeholders for stuff to save
 LambdaSim<-lamBCI<-NtotSim<-pSim<-pBCI<-matrix(NA, nsim,2)                 
 thetaSim<-phiSim<-deltaSim<-thetaBCI<-phiBCI<-deltaBCI<-matrix(NA, nsim,1)
-mean_counts<-mean_n<-mean_r<-mean_h<-mean_y<-totMarked<-totN<-sum_m<-NA
+mean_counts<-mean_n<-mean_m<-mean_mFull<-mean_mPart<-mean_h<-mean_y<-sum_mFull<-totMarked<-totN<-sum_m<-NA
 RhatFULL<-matrix(NA, nr=nsim, nc=10)
 RhatNMIX<-matrix(NA, nr=nsim, nc=4)
+
 
 # start simulation
 for(sim in 1:nsim){
@@ -80,8 +83,8 @@ for(sim in 1:nsim){
   
   #for individuals without complete band reads, encounter histories are collapsed to count data
   #site and survey specific count data (all individuals ('counts'), known unmarked ('n'), unknown marked status ('h'), partial band reads 'r' )
-  c_obs<-n_obs<-r_obs<-h_obs<-m_obs<-list()
-  counts<-n<-r<-h<-m<-matrix(0, nr=S, nc=K)
+  c_obs<-n_obs<-mPart_obs<-h_obs<-mFull_obs<-list()
+  counts<-n<-mPart<-h<-mFull<-matrix(0, nr=S, nc=K)
   for(k in 1:K){
     #counts of unmarked+marked individuals
     c_obs[[k]] <-which(yTrue[,k]<5)     
@@ -98,31 +101,30 @@ for(sim in 1:nsim){
     hObs<-table(site[h_obs[[k]]])
     h[as.numeric(names(hObs)),k]<-hObs     
     
-    #counts of partial band read individuals
-    r_obs[[k]] <-which(yTrue[,k]==3)    
-    rObs<-table(site[r_obs[[k]]])
-    r[as.numeric(names(rObs)),k]<-rObs   
-    
     #counts of full band read individuals
-    m_obs[[k]] <-which(yTrue[,k]==4)    
-    mObs<-table(site[m_obs[[k]]])
-    m[as.numeric(names(mObs)),k]<-mObs   
+    mFull_obs[[k]] <-which(yTrue[,k]==4)    
+    mFullObs<-table(site[mFull_obs[[k]]])
+    mFull[as.numeric(names(mFullObs)),k]<-mFullObs   
+    
+    #counts of partial band read individuals
+    mPart_obs[[k]] <-which(yTrue[,k]==3)    
+    mPartObs<-table(site[mPart_obs[[k]]])
+    mPart[as.numeric(names(mPartObs)),k]<-mPartObs   
   }
   
-  #combine count types into a single array
-  nct<-array(NA, c(4,S,K))
-  nct[1,,]<-n
-  nct[2,,]<-r
-  nct[3,,]<-h
-  nct[4,,]<-m
+  m<-mFull+mPart  #detection of known marked individuals 
+  mc<-array(NA, c(2,S,K))
+  mc[1,,]<-mFull
+  mc[2,,]<-mPart
+  
   
   #Mark-resight data
   MR<- which(apply(yTrue,1,function(x) max(x==4))==1)     #marked individuals identified at least once during the study
-  mTot<-length(MR)                              #total number of detected marked individuals
-  y<-yTrue[MR,]                                 #MR encounter histories for observed individuals
-  y[y!=4]<-0                                   #keep only observations where the band was identified
+  mTot<-length(MR)                                        #total number of detected marked individuals
+  y<-yTrue[MR,]                                           #MR encounter histories for observed individuals
+  y[y!=4]<-0                                              #keep only observations where the band was identified
   y[y==4]<-1
-  mSite<-site[MR]                               #Site of detection 
+  mSite<-site[MR]                                          #Site of detection 
   
   
   ## END DATA SIMULATION
@@ -143,13 +145,11 @@ for(sim in 1:nsim){
       delta ~ dunif(0,1)            #probability marked status observed
       theta~dunif(0,1)              #probability tag was read given the individual was detected
       
-      #conditional on detection, probability of classification type
-      pc[1]<-(1-phi)*delta            #known unmarked individuals
-      pc[2]<-(phi)*delta*(1-theta)    #known marked, but not identified individuals
-      pc[3]<-(1-delta)                #unknown marking status individuals
-      pc[4]<-phi*delta*theta          #complete band read     
+      #conditional on detecting a marked individual, probability of classification type
+      pmc[1]<-theta            #known marked and bands read
+      pmc[2]<-(1-theta)        #known marked but bands not read
       
-      #mark-resight parameters
+      #conditional mark-resight parameters
       pMR<-p*theta*delta            #probability of reading bands of a marked individual
       pStar<-(1-(1-pMR)^K)          #probability band is read at least once given individual is marked
       pMRc<-(pMR/pStar)             #conditional probability of recording bands of a marked individual
@@ -163,10 +163,12 @@ for(sim in 1:nsim){
       
       #count data
       for (k in 1:K) {
-      counts[s,k] ~ dbin(p, N[s])
+      n[s,k] ~ dbin(p*delta, Nunmarked[s])   #probability of detecting and observing no-bands of an unmarked individual
+      m[s,k] ~ dbin(p*delta, Nmarked[s])     #probability of detecting and observing bands of a marked individual
+      h[s,k]~dbin((1-delta), counts[s,k])    #probability marked status is unobserved given detection
       
-      #classification of count types, condtional on detection
-      nct[1:4,s,k]~dmulti(pc[1:4], counts[s,k])
+      #classification of count types, condtional on detecting marked individual
+      mc[1:2,s,k]~dmulti(pmc[1:2], m[s,k])
       }#j
       }#s
       
@@ -190,12 +192,13 @@ for(sim in 1:nsim){
   #JAGS throws an error for matrices with 1 row.
   if(mTot==1) y<-rbind(y,NA)  #add row of NA. Does not alter estimation, but prevents error.
   
-  jags.data <- list(S = S, K = K, counts=counts, nct=nct, 
+  jags.data <- list(S = S, K = K, n=n, m=m, h=h, counts=counts, 
                     y=y, mTot=mTot)
   
   # Initial values
-  Ns<- apply(counts, 1, max)+10  
-  inits <- function() list(N = Ns, lambda=runif(1,10,18), phi=runif(1,.25,.50),p=runif(1,.25,.50), theta=runif(1,0.25,0.75), delta=runif(1,.25,0.75))
+  Nm<-apply(m,1,max)+5                          #intital values for the number of marked individuals
+  Ns<- pmax(Nm, apply(counts, 1, max))+10       #intital values for the number of unmarked individuals  
+  inits <- function() list(N = Ns, Nmarked=Nm, lambda=runif(1,10,18), phi=runif(1,.25,.50),p=runif(1,.25,.50), theta=runif(1,0.25,0.75), delta=runif(1,.25,0.75))
   
   # Parameters monitored
   params <- c("p", "theta","pStar","phi","delta", "lambda", "Ntot", "NmarkedTot", "NunmarkedTot")
@@ -203,9 +206,6 @@ for(sim in 1:nsim){
   # Call JAGS 
   out <- jags(jags.data, inits, params, "NmixIntegrated_UnknownMarkingStatus.txt", n.adapt=nAdapt, n.chains = nc, n.thin = nt, n.iter = ni, n.burnin = nb, parallel=JAGSparallel)  
   #print(out,2)
-  
-  
-  
   
   
   ####################################
@@ -268,9 +268,11 @@ for(sim in 1:nsim){
   #what data look like
   mean_counts[sim]<- mean(counts)
   mean_n[sim]<-mean(n)
-  mean_r[sim]<-mean(r)
+  mean_m[sim]<-mean(m)
+  mean_mFull[sim]<-mean(mFull)
+  mean_mPart[sim]<-mean(mPart)
   mean_h[sim]<-mean(h)
-  sum_m[sim]<-sum(m)
+  sum_mFull<-mTot
   mean_y[sim]<-ifelse(is.integer(dim(y)), mean(apply(y,1,sum), mean(y)))  #mean number of occasions an individual was uniquely identified
   totMarked[sim]<-NmarkedTot
   totN[sim]<-Ntot
@@ -306,18 +308,21 @@ colnames(simTable)<-c("true",rep(colnames(BCI),4))
 #round(simTable,3)
 
 #what data look like
-datTable<-matrix(NA, nr=8, nc=4)
+datTable<-matrix(NA, nr=10, nc=4)
 colnames(datTable)<-c("mean","sd","min","max")
-rownames(datTable)<-c("Ntot","Nmarked","counts","n","r","h","m","y")
+rownames(datTable)<-c("Ntot","Nmarked","counts","n","m","mFull","mPart","h","mTot","y")
+
 resultsFun<-function(x){c(mean(x), sd(x), min(x), max(x))}
 datTable[1,]<-resultsFun(totN)
 datTable[2,]<-resultsFun(totMarked)
 datTable[3,]<-resultsFun(mean_counts)
 datTable[4,]<-resultsFun(mean_n)
-datTable[5,]<-resultsFun(mean_r)
-datTable[6,]<-resultsFun(mean_h)
-datTable[7,]<-resultsFun(sum_m)
-datTable[8,]<-resultsFun(mean_y)
+datTable[5,]<-resultsFun(mean_m)
+datTable[6,]<-resultsFun(mean_mFull)
+datTable[7,]<-resultsFun(mean_mPart)
+datTable[8,]<-resultsFun(mean_h)
+datTable[9,]<-resultsFun(sum_mFull)
+datTable[10,]<-resultsFun(mean_y)
 #round(datTable,2)
 
 
