@@ -14,7 +14,7 @@
 ##  2. N-mix model using only count data (counts[s,t])
 ##
 ##  updated: 25-May-2018
-##
+##  NAthan
 ##---------------------------------------------------------------------##
 
 rm(list=ls())
