@@ -1,6 +1,7 @@
 # Nmix-MarkResight
 # Simulation and analysis of N-mix count and mark-resight data
 # TEST
+# TEST2
 ##---------------------------------------------------------------------##
 ## 
 ## Simulate and analyze repeated count and mark-resight data
