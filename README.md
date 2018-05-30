@@ -1,25 +1,21 @@
 # Nmix-MarkResight
 # Simulation and analysis of N-mix count and mark-resight data
-# TEST
-# TEST2
-##---------------------------------------------------------------------##
-## 
-## Simulate and analyze repeated count and mark-resight data
-##
-## Data: Spatially and temporally repeated surveys collecting
-##  (i)   counts of known unmarked individuals (n[s,t], e.g., bird detected, legs visible, and not bands) 
-##  (ii)  counts of individuals with unknown marked status (h[s,t], e.g., bird detected but legs not visible) 
-##  (iii) counts of marked but unidentified individuals (r[s,t], e.g. partial band reads)
-##  (iv)  counts of marked and unidentified individuals (m[s,t], e.g. partial band reads)
-##  (v)  capture histories of marked individuals (y[i,t], e.g., complete band reads)
-##
-## Three modeling approaches: 
-##  1. Integrated model 
-##  2. N-mix model using only count data (counts[s,t])
-##
-##  updated: 25-May-2018
-##
-##---------------------------------------------------------------------##
+
+
+# Data: Spatially and temporally repeated surveys collecting
+#  (i)   counts of known unmarked individuals (n[s,t], e.g., bird detected, legs visible, and not bands) 
+#  (ii)  counts of individuals with unknown marked status (h[s,t], e.g., bird detected but legs not visible) 
+#  (iii) counts of marked but unidentified individuals (r[s,t], e.g. partial band reads)
+#  (iv)  counts of marked and unidentified individuals (m[s,t], e.g. partial band reads)
+#  (v)  capture histories of marked individuals (y[i,t], e.g., complete band reads)
+#
+# Three modeling approaches: 
+#  1. Integrated model 
+#  2. N-mix model using only count data (counts[s,t])
+#
+#  updated: 25-May-2018
+#
+#---------------------------------------------------------------------#
 
 rm(list=ls())
 #setwd("C:\\Nathan\\pwrc\\projects\\American Oystercatchers\\R files\\simulation\\workspaces\\unknown banding status")
